@@ -1,0 +1,4 @@
+dataset,rows,columns
+users.csv,450,19
+content.csv,900,18
+interactions.csv,22000,15

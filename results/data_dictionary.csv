@@ -1,0 +1,28 @@
+file,column,description
+users.csv,user_id,Unique user identifier
+users.csv,persona,Synthetic student persona that drives preference patterns
+users.csv,favorite_categories,Pipe-separated preferred content categories
+users.csv,preferred_formats,Pipe-separated preferred content formats
+users.csv,preferred_moods,Pipe-separated preferred content moods
+users.csv,session_pattern,Typical content consumption time
+users.csv,budget_sensitivity,Spending sensitivity for content with cost signals
+content.csv,content_id,Unique content identifier
+content.csv,category,Main content category
+content.csv,subcategory,Specific subcategory
+content.csv,tags,Pipe-separated topical tags
+content.csv,format,"Content type such as Article, Guide, Podcast, Video"
+content.csv,mood,Mood or vibe of the content
+content.csv,cost_band,Indicative student affordability level
+content.csv,location_scope,Primary geographic relevance of the content
+content.csv,popularity_score,Synthetic relative popularity score 0-100
+content.csv,recency_score,Synthetic recency score 0-100
+interactions.csv,interaction_id,Unique interaction identifier
+interactions.csv,viewed,Whether user viewed the content
+interactions.csv,liked,Whether user liked the content
+interactions.csv,saved,Whether user saved the content
+interactions.csv,shared,Whether user shared the content
+interactions.csv,completed,Whether user meaningfully completed the content
+interactions.csv,dwell_time_percent,Percentage of content consumed
+interactions.csv,rating,Optional explicit rating 1-5
+interactions.csv,engagement_score,Weighted interaction strength for modeling
+interactions.csv,recommendation_surface,UI surface where interaction occurred

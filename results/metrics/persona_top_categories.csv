@@ -1,0 +1,41 @@
+persona,category,recommendation_count
+Budget Explorer,Food,64
+Budget Explorer,Events,47
+Budget Explorer,Travel,45
+Budget Explorer,Lifestyle,44
+Budget Explorer,Deals,30
+Campus Connector,Events,94
+Campus Connector,Food,58
+Campus Connector,Lifestyle,50
+Campus Connector,Study,37
+Campus Connector,Career,20
+Career Builder,Career,76
+Career Builder,Productivity,53
+Career Builder,Tech,45
+Career Builder,Study,33
+Career Builder,Finance,32
+Focused Planner,Study,128
+Focused Planner,Career,81
+Focused Planner,Productivity,57
+Focused Planner,Wellness,50
+Focused Planner,Finance,48
+Minimalist Achiever,Study,85
+Minimalist Achiever,Wellness,53
+Minimalist Achiever,Career,50
+Minimalist Achiever,Finance,36
+Minimalist Achiever,Productivity,25
+Pop Culture Browser,Events,45
+Pop Culture Browser,Food,40
+Pop Culture Browser,Lifestyle,34
+Pop Culture Browser,Entertainment,33
+Pop Culture Browser,Music,28
+Weekend Adventurer,Food,73
+Weekend Adventurer,Events,72
+Weekend Adventurer,Travel,38
+Weekend Adventurer,Lifestyle,24
+Weekend Adventurer,Entertainment,13
+Wellness Seeker,Study,68
+Wellness Seeker,Lifestyle,56
+Wellness Seeker,Wellness,49
+Wellness Seeker,Food,43
+Wellness Seeker,Fitness,24
