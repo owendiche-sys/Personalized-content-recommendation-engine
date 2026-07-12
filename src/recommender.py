@@ -23,11 +23,13 @@ personalized-content-recommendation-engine/
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, Optional, Sequence, Set
 import pickle
 
+import numpy as np
 import pandas as pd
 
 
@@ -42,6 +44,7 @@ class RecommenderBundle:
     content_index: Dict[str, int]
     seen_lookup: Dict[str, Set[str]]
     content_popularity_lookup: pd.DataFrame
+    asset_source: str = "saved pickle assets"
 
 
 def find_project_root(start_path: Optional[Path] = None) -> Path:
@@ -71,8 +74,6 @@ def _validate_required_files(project_root: Path) -> None:
         project_root / "data" / "raw" / "users.csv",
         project_root / "data" / "processed" / "content_features.csv",
         project_root / "data" / "processed" / "interaction_scores.csv",
-        project_root / "models" / "similarity_matrix.pkl",
-        project_root / "models" / "recommender_assets.pkl",
     ]
     missing = [str(path) for path in required if not path.exists()]
     if missing:
@@ -92,11 +93,17 @@ def load_recommender_bundle(project_root: Optional[Path] = None) -> RecommenderB
     content_features = pd.read_csv(root / "data" / "processed" / "content_features.csv")
     interaction_scores = pd.read_csv(root / "data" / "processed" / "interaction_scores.csv")
 
-    with open(root / "models" / "similarity_matrix.pkl", "rb") as f:
-        similarity_matrix = pickle.load(f)
+    asset_source = "saved pickle assets"
+    try:
+        with open(root / "models" / "similarity_matrix.pkl", "rb") as f:
+            similarity_matrix = pickle.load(f)
 
-    with open(root / "models" / "recommender_assets.pkl", "rb") as f:
-        assets = pickle.load(f)
+        with open(root / "models" / "recommender_assets.pkl", "rb") as f:
+            assets = pickle.load(f)
+    except (FileNotFoundError, ModuleNotFoundError, AttributeError, pickle.UnpicklingError):
+        assets = build_recommender_assets(content_features, interaction_scores)
+        similarity_matrix = assets["similarity_matrix"]
+        asset_source = "rebuilt from CSV files"
 
     top_popular = assets["top_popular"].copy()
 
@@ -125,7 +132,103 @@ def load_recommender_bundle(project_root: Optional[Path] = None) -> RecommenderB
         content_popularity_lookup=content_popularity_lookup[
             ["content_id", "normalized_popularity_score"]
         ],
+        asset_source=asset_source,
     )
+
+
+def _tokenize_text(value: object) -> list[str]:
+    text = "" if pd.isna(value) else str(value).lower()
+    for char in "|,-:/()[]":
+        text = text.replace(char, " ")
+    return [token for token in text.split() if len(token) > 1]
+
+
+def _build_similarity_matrix(content_features: pd.DataFrame) -> np.ndarray:
+    documents = [Counter(_tokenize_text(text)) for text in content_features["text_features"]]
+    vocabulary = sorted({token for doc in documents for token in doc})
+    if not vocabulary:
+        return np.eye(len(content_features), dtype=float)
+
+    token_index = {token: idx for idx, token in enumerate(vocabulary)}
+    matrix = np.zeros((len(documents), len(vocabulary)), dtype=float)
+
+    for row_idx, document in enumerate(documents):
+        for token, count in document.items():
+            matrix[row_idx, token_index[token]] = count
+
+    document_frequency = (matrix > 0).sum(axis=0)
+    idf = np.log((1 + len(documents)) / (1 + document_frequency)) + 1
+    tfidf = matrix * idf
+    norms = np.linalg.norm(tfidf, axis=1, keepdims=True)
+    norms[norms == 0] = 1
+    normalized = tfidf / norms
+    return normalized @ normalized.T
+
+
+def build_recommender_assets(
+    content_features: pd.DataFrame,
+    interaction_scores: pd.DataFrame,
+) -> dict[str, object]:
+    """Build recommender assets directly from CSVs when pickle files are unavailable."""
+    popularity = (
+        interaction_scores.groupby("content_id", as_index=False)
+        .agg(
+            interaction_count=("interaction_id", "count"),
+            avg_engagement=("engagement_score", "mean"),
+            like_rate=("liked", "mean"),
+            save_rate=("saved", "mean"),
+            completion_rate=("completed", "mean"),
+        )
+    )
+    popularity = content_features.merge(popularity, on="content_id", how="left")
+    for column in ["interaction_count", "avg_engagement", "like_rate", "save_rate", "completion_rate"]:
+        popularity[column] = popularity[column].fillna(0)
+
+    popularity["popularity_rank_score"] = (
+        popularity["popularity_score"].rank(pct=True) * 0.25
+        + popularity["content_quality_score"].rank(pct=True) * 0.20
+        + popularity["recency_score"].rank(pct=True) * 0.15
+        + popularity["interaction_count"].rank(pct=True) * 0.15
+        + popularity["avg_engagement"].rank(pct=True) * 0.15
+        + popularity["save_rate"].rank(pct=True) * 0.10
+    )
+
+    seen_lookup = (
+        interaction_scores.groupby("user_id")["content_id"]
+        .apply(lambda values: set(values.dropna()))
+        .to_dict()
+    )
+    content_index = {
+        content_id: idx for idx, content_id in enumerate(content_features["content_id"].tolist())
+    }
+
+    return {
+        "top_popular": popularity.sort_values("popularity_rank_score", ascending=False),
+        "content_index": content_index,
+        "seen_lookup": seen_lookup,
+        "similarity_matrix": _build_similarity_matrix(content_features),
+    }
+
+
+def _content_columns(content_features: pd.DataFrame) -> list[str]:
+    preferred = [
+        "content_id",
+        "title",
+        "category",
+        "subcategory",
+        "tags",
+        "format",
+        "mood",
+        "depth_level",
+        "duration_minutes",
+        "cost_band",
+        "time_of_day_fit",
+        "location_scope",
+        "popularity_score",
+        "recency_score",
+        "content_quality_score",
+    ]
+    return [column for column in preferred if column in content_features.columns]
 
 
 def get_popular_recommendations(
@@ -171,9 +274,7 @@ def get_similar_items(
     item_indices = [i[0] for i in sim_scores]
     item_scores = [float(i[1]) for i in sim_scores]
 
-    results = bundle.content_features.iloc[item_indices][
-        ["content_id", "title", "category", "format", "mood"]
-    ].copy()
+    results = bundle.content_features.iloc[item_indices][_content_columns(bundle.content_features)].copy()
     results["similarity_score"] = item_scores
     return results.reset_index(drop=True)
 
@@ -298,10 +399,7 @@ def recommend_for_user(
         )
 
     candidates = (
-        candidates.groupby(
-            ["content_id", "title", "category", "format", "mood"],
-            as_index=False,
-        )
+        candidates.groupby(_content_columns(bundle.content_features), as_index=False)
         .agg(content_similarity_score=("similarity_score", "mean"))
     )
 
@@ -333,6 +431,9 @@ def recommend_for_user(
         _build_reason,
         axis=1,
         args=(fav_categories, pref_formats, pref_moods),
+    )
+    candidates["recommendation_reason"] = candidates["recommendation_reason"] + (
+        "; balanced with popularity and content quality"
     )
 
     output = candidates.sort_values("final_score", ascending=False).head(top_n).copy()
@@ -395,11 +496,19 @@ def recommend_from_preferences(
         "content_id",
         "title",
         "category",
+        "subcategory",
+        "tags",
         "format",
         "mood",
+        "depth_level",
+        "duration_minutes",
+        "cost_band",
+        "time_of_day_fit",
+        "location_scope",
         "final_score",
         "recommendation_reason",
     ]
+    cols = [col for col in cols if col in candidates.columns]
     return (
         candidates.sort_values(["final_score", "popularity_score"], ascending=False)
         .loc[:, cols]

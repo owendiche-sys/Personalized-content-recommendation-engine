@@ -15,6 +15,7 @@ Run with:
 from __future__ import annotations
 
 import sys
+from html import escape
 from pathlib import Path
 
 import pandas as pd
@@ -56,9 +57,80 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("Personalized Content Recommendation Engine")
-st.caption(
-    "Hybrid recommendations using content similarity, popularity signals, and user preference matching."
+st.markdown(
+    """
+    <style>
+    .main .block-container {padding-top: 1.5rem; max-width: 1280px;}
+    [data-testid="stMetric"] {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.85rem 1rem;
+    }
+    .hero {
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 1rem;
+        margin-bottom: 1.25rem;
+    }
+    .hero h1 {
+        font-size: 2.1rem;
+        line-height: 1.15;
+        margin-bottom: 0.35rem;
+        letter-spacing: 0;
+    }
+    .hero p {color: #475569; margin: 0; max-width: 880px;}
+    .rec-card {
+        border: 1px solid #dbe3ee;
+        border-radius: 8px;
+        padding: 1rem;
+        background: #ffffff;
+        min-height: 250px;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+    .rec-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.3;
+        margin-bottom: 0.5rem;
+    }
+    .rec-meta, .rec-detail {
+        color: #475569;
+        font-size: 0.86rem;
+        line-height: 1.45;
+        margin-bottom: 0.45rem;
+    }
+    .rec-reason {
+        color: #1e293b;
+        font-size: 0.88rem;
+        line-height: 1.45;
+        border-top: 1px solid #e2e8f0;
+        margin-top: 0.65rem;
+        padding-top: 0.65rem;
+    }
+    .score-pill {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 0.2rem 0.55rem;
+        background: #e0f2fe;
+        color: #075985;
+        font-size: 0.78rem;
+        font-weight: 700;
+        margin-bottom: 0.65rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    """
+    <div class="hero">
+      <h1>Personalized Content Recommendation Engine</h1>
+      <p>Choose a student profile or start from interests, then get ranked content picks with the reason each item was recommended.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 
@@ -110,6 +182,7 @@ except Exception as exc:
 # Sidebar controls
 # -------------------------------------------------------------------
 st.sidebar.header("Controls")
+st.sidebar.caption(f"Recommendation assets: {bundle.asset_source}")
 
 mode = st.sidebar.radio(
     "Recommendation mode",
@@ -159,6 +232,72 @@ def show_recommendation_table(df: pd.DataFrame, score_column: str = "final_score
 
     display_df = prepare_recommendation_display(df, score_column=score_column)
     st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+
+def _score_text(row: pd.Series, score_column: str) -> str:
+    if score_column not in row:
+        return ""
+    try:
+        return f"{float(row[score_column]):.3f}"
+    except (TypeError, ValueError):
+        return str(row[score_column])
+
+
+def _safe_value(row: pd.Series, column: str, fallback: str = "Not specified") -> str:
+    value = row.get(column, fallback)
+    if pd.isna(value):
+        return fallback
+    text = str(value).strip()
+    return text or fallback
+
+
+def show_recommendation_cards(df: pd.DataFrame, score_column: str = "final_score") -> None:
+    if df.empty:
+        st.info("No recommendations matched the current filters.")
+        return
+
+    rows = df.reset_index(drop=True)
+    for start in range(0, len(rows), 3):
+        columns = st.columns(3)
+        for col, (_, row) in zip(columns, rows.iloc[start : start + 3].iterrows()):
+            tags = _safe_value(row, "tags", "").replace("|", ", ")
+            duration = _safe_value(row, "duration_minutes", "Flexible")
+            if duration != "Flexible":
+                duration = f"{duration} min"
+            detail = " | ".join(
+                part
+                for part in [
+                    _safe_value(row, "format"),
+                    _safe_value(row, "mood"),
+                    _safe_value(row, "depth_level"),
+                    duration,
+                    _safe_value(row, "cost_band", ""),
+                ]
+                if part
+            )
+            context = " | ".join(
+                part
+                for part in [
+                    _safe_value(row, "subcategory", ""),
+                    _safe_value(row, "time_of_day_fit", ""),
+                    _safe_value(row, "location_scope", ""),
+                ]
+                if part
+            )
+            col.markdown(
+                f"""
+                <div class="rec-card">
+                    <div class="score-pill">Score {_score_text(row, score_column)}</div>
+                    <div class="rec-title">{escape(_safe_value(row, "title"))}</div>
+                    <div class="rec-meta">{escape(_safe_value(row, "category"))}</div>
+                    <div class="rec-detail">{escape(detail)}</div>
+                    <div class="rec-detail">{escape(context)}</div>
+                    <div class="rec-detail">{escape(tags)}</div>
+                    <div class="rec-reason">{escape(_safe_value(row, "recommendation_reason", "Relevant recommendation"))}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 def build_user_history_snapshot(user_id: str) -> pd.DataFrame:
@@ -241,7 +380,9 @@ with main_tab:
         st.subheader("Recommended For This User")
         recommendations = recommend_for_user(bundle, user_id=user_id, top_n=top_n * 2)
         recommendations = apply_global_filters(recommendations).head(top_n)
-        show_recommendation_table(recommendations, score_column="final_score")
+        show_recommendation_cards(recommendations, score_column="final_score")
+        with st.expander("View recommendation table"):
+            show_recommendation_table(recommendations, score_column="final_score")
 
         st.subheader("Strongest Historical Interactions")
         user_history = build_user_history_snapshot(user_id)
@@ -275,7 +416,9 @@ with main_tab:
         recommendations = apply_global_filters(recommendations).head(top_n)
 
         st.subheader("Recommended Content")
-        show_recommendation_table(recommendations, score_column="final_score")
+        show_recommendation_cards(recommendations, score_column="final_score")
+        with st.expander("View recommendation table"):
+            show_recommendation_table(recommendations, score_column="final_score")
 
         st.subheader("Selection Summary")
         summary = pd.DataFrame(
@@ -293,7 +436,7 @@ with main_tab:
     st.subheader("Popular Content Baseline")
     popular = get_popular_recommendations(bundle, top_n=top_n * 2)
     popular = apply_global_filters(popular).head(top_n)
-    show_recommendation_table(popular, score_column="popularity_rank_score")
+    show_recommendation_cards(popular, score_column="popularity_rank_score")
 
 
 with explore_tab:
@@ -318,16 +461,15 @@ with explore_tab:
     )
 
     selected_item = content_pool.loc[content_pool["content_id"] == content_choice].iloc[0]
-    st.write(
-        f"Selected item: {selected_item['title']} | "
-        f"Category: {selected_item['category']} | "
-        f"Format: {selected_item['format']} | "
-        f"Mood: {selected_item['mood']}"
+    st.info(
+        f"{selected_item['title']} | {selected_item['category']} | "
+        f"{selected_item['format']} | {selected_item['mood']}"
     )
 
     similar_items = get_similar_items(bundle, content_id=content_choice, top_n=top_n * 2)
     similar_items = apply_global_filters(similar_items).head(top_n)
-    show_recommendation_table(similar_items, score_column="similarity_score")
+    similar_items["recommendation_reason"] = "Similar content profile and tags"
+    show_recommendation_cards(similar_items, score_column="similarity_score")
 
     st.subheader("Content Catalog Snapshot")
     catalog_view = bundle.content_features[
