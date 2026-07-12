@@ -53,8 +53,8 @@ st.markdown(
     }
     .main .block-container {padding-top: 1.25rem; max-width: 1240px;}
     h1, h2, h3 {letter-spacing: 0;}
-    p, label, span, div {
-        color: inherit;
+    p, label {
+        color: #0f172a;
     }
     [data-testid="stSidebar"] {
         background: #ffffff;
@@ -115,6 +115,19 @@ st.markdown(
         border-radius: 8px;
         padding: 0.85rem 1rem;
         color: #0f172a;
+    }
+    [data-testid="stMetric"] label,
+    [data-testid="stMetric"] [data-testid="stMetricLabel"],
+    [data-testid="stMetric"] [data-testid="stMetricValue"],
+    [data-testid="stMetric"] [data-testid="stMetricDelta"],
+    [data-testid="stMetric"] div,
+    [data-testid="stMetric"] p,
+    [data-testid="stMetric"] span {
+        color: #0f172a !important;
+        opacity: 1 !important;
+    }
+    [data-testid="stMetric"] [data-testid="stMetricValue"] {
+        font-weight: 750;
     }
     .hero {
         border: 1px solid #dbe3ee;
