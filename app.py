@@ -302,6 +302,15 @@ def cost_friendly_percent(df: pd.DataFrame) -> str:
     return f"{float(rate * 100):.0f}%"
 
 
+def reset_widget_if_invalid(key: str, options: list[str]) -> None:
+    """Keep Streamlit session state valid when one setting changes another widget's options."""
+    if not options:
+        st.session_state.pop(key, None)
+        return
+    if st.session_state.get(key) not in options:
+        st.session_state[key] = options[0]
+
+
 def apply_intent_filters(
     recommendations: pd.DataFrame,
     categories: list[str],
@@ -489,22 +498,24 @@ with st.sidebar:
     st.header("Intent")
     st.caption(f"Assets: {bundle.asset_source}")
 
-    mode = st.radio("Starting point", options=["Existing User", "New Taste Profile"])
-    top_n = st.slider("Feed size", min_value=4, max_value=16, value=8)
-    max_minutes = st.slider("Time available", min_value=5, max_value=60, value=25, step=5)
+    mode = st.radio("Starting point", options=["Existing User", "New Taste Profile"], key="starting_point")
+    top_n = st.slider("Feed size", min_value=4, max_value=16, value=8, key="feed_size")
+    max_minutes = st.slider("Time available", min_value=5, max_value=60, value=25, step=5, key="time_available")
 
-    selected_categories = st.multiselect("Interests", options=filter_options["categories"], default=[])
-    selected_formats = st.multiselect("Formats", options=filter_options["formats"], default=[])
-    selected_moods = st.multiselect("Mood", options=filter_options["moods"], default=[])
+    selected_categories = st.multiselect("Interests", options=filter_options["categories"], default=[], key="intent_categories")
+    selected_formats = st.multiselect("Formats", options=filter_options["formats"], default=[], key="intent_formats")
+    selected_moods = st.multiselect("Mood", options=filter_options["moods"], default=[], key="intent_moods")
     selected_costs = st.multiselect(
         "Budget",
         options=sorted(bundle.content_features["cost_band"].dropna().unique().tolist()),
         default=[],
+        key="intent_costs",
     )
     surface_options = ["Any"] + sorted(
         bundle.content_features["recommendation_surface"].dropna().unique().tolist()
     )
-    selected_surface = st.selectbox("Content depth", options=surface_options, index=0)
+    reset_widget_if_invalid("intent_surface", surface_options)
+    selected_surface = st.selectbox("Content depth", options=surface_options, key="intent_surface")
 
     if st.button("Reset feedback", width="stretch"):
         st.session_state.saved_items = []
@@ -520,16 +531,20 @@ feed_tab, saved_tab, explore_tab, metrics_tab = st.tabs(
 
 with feed_tab:
     if mode == "Existing User":
+        persona_options = ["All"] + filter_options["personas"]
+        reset_widget_if_invalid("persona_filter", persona_options)
         persona_filter = st.selectbox(
             "Persona",
-            options=["All"] + filter_options["personas"],
-            index=0,
+            options=persona_options,
+            key="persona_filter",
         )
         available_users = bundle.users.copy()
         if persona_filter != "All":
             available_users = available_users.loc[available_users["persona"] == persona_filter].copy()
 
-        user_id = st.selectbox("Student profile", options=available_users["user_id"].tolist())
+        user_options = available_users["user_id"].tolist()
+        reset_widget_if_invalid("selected_user_id", user_options)
+        user_id = st.selectbox("Student profile", options=user_options, key="selected_user_id")
         user_row = get_user_row(bundle.users, user_id)
 
         profile_cols = st.columns(4)
@@ -656,17 +671,20 @@ with saved_tab:
 with explore_tab:
     st.subheader("Explore the Catalog")
     explorer_cols = st.columns([1, 1, 1])
+    explore_category_options = ["All"] + filter_options["categories"]
+    reset_widget_if_invalid("explore_category", explore_category_options)
     content_search_category = explorer_cols[0].selectbox(
         "Category",
-        options=["All"] + filter_options["categories"],
-        index=0,
+        options=explore_category_options,
+        key="explore_category",
     )
+    reset_widget_if_invalid("explore_surface", surface_options)
     content_search_surface = explorer_cols[1].selectbox(
         "Depth",
         options=surface_options,
-        index=0,
+        key="explore_surface",
     )
-    query = explorer_cols[2].text_input("Search title or tags")
+    query = explorer_cols[2].text_input("Search title or tags", key="explore_query")
 
     content_pool = bundle.content_features.copy()
     if content_search_category != "All":
@@ -686,12 +704,15 @@ with explore_tab:
     if content_pool.empty:
         st.info("No catalog items match the current search.")
     else:
+        content_options = content_pool["content_id"].tolist()
+        reset_widget_if_invalid("explore_content_id", content_options)
         content_choice = st.selectbox(
             "Content item",
-            options=content_pool["content_id"].tolist(),
+            options=content_options,
             format_func=lambda cid: (
                 f"{cid} - {content_pool.loc[content_pool['content_id'] == cid, 'title'].iloc[0]}"
             ),
+            key="explore_content_id",
         )
 
         selected_item = content_pool.loc[content_pool["content_id"] == content_choice].iloc[0]
