@@ -1,13 +1,13 @@
 # Personalized Content Recommendation Engine
 
-A Streamlit recommendation product that suggests student lifestyle content from real user preferences, historical engagement, content metadata, and popularity signals.
+A Streamlit recommendation product that suggests student lifestyle content from real user preferences, current intent, historical engagement, content metadata, and popularity signals.
 
 The app supports two practical flows:
 
 - **Existing user recommendations**: choose a student profile and receive unseen content ranked for that user's interests and past engagement.
 - **Preference-based recommendations**: choose categories, formats, and moods for a cold-start user and get immediate content suggestions.
 
-Each recommendation includes a score, category, format, duration, cost band, tags, and a plain-English reason explaining why it was selected.
+Each recommendation includes a score, description, source, action link, category, format, duration, cost band, tags, and a plain-English reason explaining why it was selected.
 
 ## Why This Project Matters
 
@@ -21,10 +21,11 @@ The synthetic dataset models a student content platform with study resources, ca
 - Existing-user flow that excludes content the user has already seen.
 - Cold-start flow for users without interaction history.
 - Similar-content explorer for item-to-item discovery.
-- Recommendation cards with explainable reasons and useful content details.
+- Recommendation cards with descriptions, sources, action buttons, explainable reasons, save/dismiss controls, and "more like this" discovery.
 - Popularity baseline for comparison.
 - Offline metrics and diagnostic outputs stored in `results/metrics/`.
 - Reproducible preprocessing through `src/data_prep.py`.
+- Repeatable catalog enrichment through `scripts/enrich_content_catalog.py`.
 - Robust CSV fallback when saved pickle assets are missing or incompatible.
 - Unit tests for asset rebuilding and recommendation behavior.
 
@@ -39,7 +40,7 @@ The project includes:
 Core files live in `data/raw/`:
 
 - `users.csv`: student personas, interests, preferred formats, moods, session habits, and discovery style.
-- `content.csv`: titles, categories, tags, formats, mood, depth, duration, cost band, freshness, popularity, recency, and quality signals.
+- `content.csv`: titles, categories, tags, formats, mood, depth, duration, cost band, freshness, popularity, recency, quality signals, descriptions, source/action fields, URLs, and practicality scores.
 - `interactions.csv`: views, likes, saves, shares, completions, dwell time, ratings, timestamps, and engagement scores.
 
 Processed files live in `data/processed/`. See `data/README.md` for details.
@@ -58,6 +59,8 @@ Personalized-content-recommendation-engine/
 |-- results/
 |   |-- figures/
 |   `-- metrics/
+|-- scripts/
+|   `-- enrich_content_catalog.py
 |-- src/
 |   |-- data_prep.py
 |   |-- recommender.py
@@ -80,6 +83,7 @@ pip install -r requirements.txt
 Rebuild processed datasets:
 
 ```bash
+python scripts/enrich_content_catalog.py
 python -m src.data_prep
 ```
 
@@ -122,8 +126,9 @@ For cold-start users, the engine:
 The Streamlit app includes:
 
 - recommendation cards for user-specific and cold-start suggestions
-- category, format, and mood filters
+- intent controls for interests, formats, mood, time, budget, and content depth
 - user profile summaries
+- save, dismiss, and more-like-this controls
 - strongest historical interactions
 - similar-item lookup
 - content catalog browser
@@ -134,6 +139,7 @@ The Streamlit app includes:
 Current automated checks cover:
 
 - rebuilding recommender assets directly from CSV files
+- checking that the catalog includes product-facing content fields
 - returning unseen recommendations for existing users
 - generating explained cold-start recommendations
 

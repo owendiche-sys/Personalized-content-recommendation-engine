@@ -30,6 +30,21 @@ class RecommenderBehaviorTests(unittest.TestCase):
         self.assertIn("top_popular", assets)
         self.assertGreater(len(assets["seen_lookup"]), 0)
 
+    def test_catalog_has_product_facing_content_fields(self):
+        expected_columns = {
+            "description",
+            "why_it_matters",
+            "source_name",
+            "action_label",
+            "source_url",
+            "recommendation_surface",
+            "practicality_score",
+        }
+
+        self.assertTrue(expected_columns.issubset(set(self.content_features.columns)))
+        self.assertTrue(self.content_features["description"].str.len().gt(40).all())
+        self.assertTrue(self.content_features["source_url"].str.startswith("https://").all())
+
     def test_existing_user_recommendations_are_unseen_and_explained(self):
         user_id = self.users["user_id"].iloc[0]
         seen = self.bundle.seen_lookup.get(user_id, set())
@@ -38,7 +53,9 @@ class RecommenderBehaviorTests(unittest.TestCase):
 
         self.assertFalse(recs.empty)
         self.assertTrue(set(recs["content_id"]).isdisjoint(seen))
-        self.assertTrue(recs["recommendation_reason"].str.len().gt(0).all())
+        self.assertTrue(recs["recommendation_reason"].str.startswith("Recommended because").all())
+        self.assertIn("description", recs.columns)
+        self.assertIn("action_label", recs.columns)
 
     def test_preference_recommendations_prioritize_selected_category(self):
         recs = recommend_from_preferences(

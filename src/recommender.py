@@ -93,17 +93,26 @@ def load_recommender_bundle(project_root: Optional[Path] = None) -> RecommenderB
     content_features = pd.read_csv(root / "data" / "processed" / "content_features.csv")
     interaction_scores = pd.read_csv(root / "data" / "processed" / "interaction_scores.csv")
 
-    asset_source = "saved pickle assets"
-    try:
-        with open(root / "models" / "similarity_matrix.pkl", "rb") as f:
-            similarity_matrix = pickle.load(f)
-
-        with open(root / "models" / "recommender_assets.pkl", "rb") as f:
-            assets = pickle.load(f)
-    except (FileNotFoundError, ModuleNotFoundError, AttributeError, pickle.UnpicklingError):
+    product_columns = {"description", "source_url", "recommendation_surface"}
+    if product_columns.issubset(set(content_features.columns)):
         assets = build_recommender_assets(content_features, interaction_scores)
         similarity_matrix = assets["similarity_matrix"]
-        asset_source = "rebuilt from CSV files"
+        asset_source = "rebuilt from enriched CSV files"
+    else:
+        asset_source = "saved pickle assets"
+        try:
+            with open(root / "models" / "similarity_matrix.pkl", "rb") as f:
+                similarity_matrix = pickle.load(f)
+
+            with open(root / "models" / "recommender_assets.pkl", "rb") as f:
+                assets = pickle.load(f)
+
+            if not product_columns.issubset(set(assets["top_popular"].columns)):
+                raise ValueError("Saved recommender assets are older than the enriched catalog schema.")
+        except (FileNotFoundError, ModuleNotFoundError, AttributeError, ValueError, pickle.UnpicklingError):
+            assets = build_recommender_assets(content_features, interaction_scores)
+            similarity_matrix = assets["similarity_matrix"]
+            asset_source = "rebuilt from CSV files"
 
     top_popular = assets["top_popular"].copy()
 
@@ -224,6 +233,13 @@ def _content_columns(content_features: pd.DataFrame) -> list[str]:
         "cost_band",
         "time_of_day_fit",
         "location_scope",
+        "description",
+        "why_it_matters",
+        "source_name",
+        "action_label",
+        "source_url",
+        "recommendation_surface",
+        "practicality_score",
         "popularity_score",
         "recency_score",
         "content_quality_score",
@@ -335,16 +351,20 @@ def _build_reason(
     reasons = []
 
     if row["category"] in fav_categories:
-        reasons.append("matches favorite category")
+        reasons.append(f"you often choose {row['category']} content")
     if row["format"] in pref_formats:
-        reasons.append("matches preferred format")
+        reasons.append(f"you prefer {str(row['format']).lower()}s")
     if row["mood"] in pref_moods:
-        reasons.append("fits preferred mood")
+        reasons.append(f"it fits a {str(row['mood']).lower()} mood")
 
     if not reasons:
-        reasons.append("similar to previously engaged content")
+        reasons.append("it is close to content you engaged with before")
 
-    return "; ".join(reasons)
+    why_it_matters = str(row.get("why_it_matters", "")).strip()
+    if why_it_matters:
+        reasons.append(why_it_matters.rstrip("."))
+
+    return "Recommended because " + ", ".join(reasons[:4]) + "."
 
 
 def recommend_for_user(
@@ -432,10 +452,6 @@ def recommend_for_user(
         axis=1,
         args=(fav_categories, pref_formats, pref_moods),
     )
-    candidates["recommendation_reason"] = candidates["recommendation_reason"] + (
-        "; balanced with popularity and content quality"
-    )
-
     output = candidates.sort_values("final_score", ascending=False).head(top_n).copy()
     return output.reset_index(drop=True)
 
@@ -481,14 +497,17 @@ def recommend_from_preferences(
     def cold_reason(row: pd.Series) -> str:
         parts = []
         if row["category"] in favorite_categories:
-            parts.append("selected category")
+            parts.append(f"it matches your interest in {row['category']}")
         if row["format"] in preferred_formats:
-            parts.append("selected format")
+            parts.append(f"it is a {str(row['format']).lower()}")
         if row["mood"] in preferred_moods:
-            parts.append("selected mood")
+            parts.append(f"it has a {str(row['mood']).lower()} feel")
         if not parts:
-            parts.append("popular content fallback")
-        return "; ".join(parts)
+            parts.append("it is one of the stronger all-round picks")
+        why_it_matters = str(row.get("why_it_matters", "")).strip()
+        if why_it_matters:
+            parts.append(why_it_matters.rstrip("."))
+        return "Recommended because " + ", ".join(parts[:4]) + "."
 
     candidates["recommendation_reason"] = candidates.apply(cold_reason, axis=1)
 
@@ -505,6 +524,13 @@ def recommend_from_preferences(
         "cost_band",
         "time_of_day_fit",
         "location_scope",
+        "description",
+        "why_it_matters",
+        "source_name",
+        "action_label",
+        "source_url",
+        "recommendation_surface",
+        "practicality_score",
         "final_score",
         "recommendation_reason",
     ]

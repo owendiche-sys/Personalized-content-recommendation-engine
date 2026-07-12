@@ -70,6 +70,10 @@ TEXT_FEATURE_COLUMNS = [
     "format",
     "mood",
     "depth_level",
+    "description",
+    "why_it_matters",
+    "source_name",
+    "recommendation_surface",
 ]
 
 
@@ -164,6 +168,9 @@ def validate_relationships(
 def build_content_features(content: pd.DataFrame) -> pd.DataFrame:
     """Create content features for TF-IDF and downstream ranking."""
     df = content.copy()
+    for column in TEXT_FEATURE_COLUMNS:
+        if column not in df.columns:
+            df[column] = ""
     df[TEXT_FEATURE_COLUMNS] = df[TEXT_FEATURE_COLUMNS].fillna("")
 
     df["text_features"] = (
@@ -180,6 +187,14 @@ def build_content_features(content: pd.DataFrame) -> pd.DataFrame:
         + df["mood"].astype(str)
         + " "
         + df["depth_level"].astype(str)
+        + " "
+        + df["description"].astype(str)
+        + " "
+        + df["why_it_matters"].astype(str)
+        + " "
+        + df["source_name"].astype(str)
+        + " "
+        + df["recommendation_surface"].astype(str)
     ).str.strip()
 
     return df
