@@ -47,13 +47,74 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    .stApp {
+        background: #f8fafc;
+        color: #0f172a;
+    }
     .main .block-container {padding-top: 1.25rem; max-width: 1240px;}
     h1, h2, h3 {letter-spacing: 0;}
+    p, label, span, div {
+        color: inherit;
+    }
+    [data-testid="stSidebar"] {
+        background: #ffffff;
+        border-right: 1px solid #e2e8f0;
+    }
+    [data-testid="stSidebar"],
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] div {
+        color: #0f172a;
+    }
+    [data-baseweb="tab"],
+    [data-baseweb="tab"] p,
+    [data-testid="stSelectbox"] label,
+    [data-testid="stMultiSelect"] label,
+    [data-testid="stSlider"] label,
+    [data-testid="stRadio"] label {
+        color: #0f172a;
+    }
+    [data-baseweb="select"] > div,
+    [data-baseweb="input"] > div,
+    [data-baseweb="tag"] {
+        background: #ffffff;
+        color: #0f172a;
+        border-color: #cbd5e1;
+    }
+    [data-baseweb="select"] span,
+    [data-baseweb="input"] input,
+    [data-baseweb="tag"] span {
+        color: #0f172a;
+    }
+    .stButton > button,
+    .stLinkButton > a {
+        background: #ffffff;
+        color: #0f172a;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+    }
+    .stButton > button:hover,
+    .stLinkButton > a:hover {
+        background: #e0f2fe;
+        color: #075985;
+        border-color: #7dd3fc;
+    }
+    .stButton > button:disabled {
+        background: #f1f5f9;
+        color: #64748b;
+        border-color: #cbd5e1;
+    }
+    .stDataFrame,
+    [data-testid="stDataFrame"] {
+        color: #0f172a;
+    }
     [data-testid="stMetric"] {
         background: #f8fafc;
         border: 1px solid #dbe3ee;
         border-radius: 8px;
         padding: 0.85rem 1rem;
+        color: #0f172a;
     }
     .hero {
         border: 1px solid #dbe3ee;
